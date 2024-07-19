@@ -34,10 +34,6 @@ api_key_header = APIKeyHeader(name=API_KEY_NAME)
 app = FastAPI()
 
 def get_api_key(api_key: str = Depends(api_key_header)):
-    print('API_KEY: ')
-    print(str(API_KEY))
-    print('api_key: ')
-    print(str(api_key))
     if api_key != API_KEY:
         raise HTTPException(
             status_code=HTTP_403_FORBIDDEN, detail="Could not validate credentials"
