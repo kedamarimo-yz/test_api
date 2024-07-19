@@ -1,27 +1,12 @@
-""" from fastapi import FastAPI
-from pydantic import BaseModel
-
-class Data(BaseModel):
-    x: int
-    y: int
-
-app = FastAPI()
-
-@app.get('/')
-def index():
-    return {'message': 'Hello!'}
-
-@app.post('/calc')
-def face_recognition(data: Data):
-    z = data.x*data.y
-    return {'result': z} """
-    
-    
-from fastapi import FastAPI, Depends, HTTPException
-from fastapi.security.api_key import APIKeyHeader
-from starlette.status import HTTP_403_FORBIDDEN
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Depends
+from fastapi.security import APIKeyHeader
+from typing import List
 import os
 from dotenv import load_dotenv
+from deepface import DeepFace
+import tempfile
+
+app = FastAPI()
 
 # .envファイルから環境変数を読み込む（開発環境用）
 load_dotenv()
@@ -31,19 +16,47 @@ API_KEY = os.getenv("FACE_AUTH_KEY")
 API_KEY_NAME = "X-API-KEY"
 api_key_header = APIKeyHeader(name=API_KEY_NAME)
 
-app = FastAPI()
-
-def get_api_key(api_key: str = Depends(api_key_header)):
+def verify_api_key(api_key: str = Depends(api_key_header)):
     if api_key != API_KEY:
-        raise HTTPException(
-            status_code=HTTP_403_FORBIDDEN, detail="Could not validate credentials"
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+@app.post("/compare_faces")
+async def compare_faces(
+    account: str = Form(...),
+    files: List[UploadFile] = File(...),
+    api_key: str = Depends(verify_api_key)
+):
+    if len(files) != 2:
+        raise HTTPException(status_code=400, detail="Exactly two image files are required.")
+    
+    try:
+        # 一時ファイルに画像を保存
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp1:
+            temp1.write(await files[0].read())
+            temp1_path = temp1.name
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp2:
+            temp2.write(await files[1].read())
+            temp2_path = temp2.name
+        
+        # DeepFaceのverify関数を呼び出し、結果を取得
+        result = DeepFace.verify(
+            img1_path=temp1_path,
+            img2_path=temp2_path
         )
-    return api_key
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing images with DeepFace: {e}")
+    finally:
+        # 一時ファイルを削除
+        os.remove(temp1_path)
+        os.remove(temp2_path)
 
-@app.get("/")
-def read_root(api_key: str = Depends(get_api_key)):
-    return {"message": "Hello, World!"}
+    measure_results = {
+        'account': account,                             # アカウント名
+        'distances': result['distance'],                # 顔の特徴量差分
+        'identification': result['verified']            # 判定結果
+    }
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: str = None, api_key: str = Depends(get_api_key)):
-    return {"item_id": item_id, "q": q}
+    return measure_results
+
+
