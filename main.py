@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv
 from deepface import DeepFace
 import tempfile
+import traceback
 
 app = FastAPI()
 
@@ -45,6 +46,9 @@ async def compare_faces(
             img2_path=temp2_path
         )
     except Exception as e:
+        # エラーが発生した場合、詳細なエラーメッセージをログに出力
+        print(f"Error processing images with DeepFace: {e}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Error processing images with DeepFace: {e}")
     finally:
         # 一時ファイルを削除
