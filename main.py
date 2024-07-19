@@ -9,9 +9,9 @@ app = FastAPI()
 
 @app.get('/')
 def index():
-    return {'message': 'Hello Deta!'}
+    return {'message': 'Hello!'}
 
-@app.post('/')
-def calc(data: Data):
+@app.post('/calc')
+def face_recognition(data: Data):
     z = data.x*data.y
     return {'result': z}
